@@ -21,6 +21,9 @@ class Patient():
         Sim time that patient arrives at hospital
     time_call (float):
         Sim time that patient calls for ambo
+    #AGGIUNTO
+    body_parts : dict
+        Dictionary of body parts affected and their injury levels.
 
     Methods
     _______
@@ -31,7 +34,7 @@ class Patient():
     """
 
     def __init__(self, env, patient_id, number_incident_points, incident_points,
-                 incident_range, max_size, number_epochs):
+                 incident_range, max_size, number_epochs, body_parts=None):
 
 
         # Set link to SimPy environment
@@ -61,6 +64,10 @@ class Patient():
         self.incident_y += random.uniform(-incident_range, incident_range)
         self.incident_x = np.clip(self.incident_x, 0, max_size)
         self.incident_y = np.clip(self.incident_y, 0, max_size)
+
+        #AGGIUNTO
+        #parti del corpo del paziente
+        self.body_parts = body_parts if body_parts is not None else {}
 
 
 

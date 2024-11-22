@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import random
 import simpy
+import random
 
 from amboworld.ambulance import Ambulance
 from amboworld.patient import Patient
@@ -125,7 +126,7 @@ class Env(gym.Env):
                 number_epochs=2,
                 number_incident_points=4,
                 incident_range=0.0,
-                number_hospitals=1,
+                number_hospitals=4,
                 duration_incidents=1e5,
                 ambo_kph=60.0,
                 random_seed=42,
@@ -136,6 +137,7 @@ class Env(gym.Env):
                 render_grid_size=25,
                 render_interval=10,
                 ambo_free_from_hospital=True):
+
         """Constructor class for amboworld"""
 
         # Inherit from super class
@@ -151,6 +153,8 @@ class Env(gym.Env):
         self.counter_ambulances = 0
         self.dispatch_points = []
         self.hospitals = []
+        #added specs
+        self.hospitals_specializations = []
         self.incident_interval = incident_interval
         self.incident_range = incident_range
         self.incident_points = []
@@ -168,6 +172,7 @@ class Env(gym.Env):
         self.sim_duration = duration_incidents
         self.sim_time_step = time_step
         self.step_count = 0
+        self.POSSIBLE_BODY_PARTS = ["head", "arm", "leg", "chest", "abdomen", "back"]
 
         # Set action space (as a choice from dispatch points)
         self.action_space = spaces.Discrete(self.number_dispatch_points)
@@ -182,9 +187,22 @@ class Env(gym.Env):
         self._set_dispatch_points()
         self._set_incident_locations()
         self._set_hospital_locations()
+        self._set_hospital_specialization()
 
         # During writing use printing of times
         self.print_output = print_output
+
+    
+    # Funzione per generare danni casuali alle parti del corpo
+    def _generate_random_injuries(self):
+        """
+        Genera un dizionario casuale di parti del corpo e livelli di danno.
+        """
+        num_parts = random.randint(1, len(self.POSSIBLE_BODY_PARTS))  # Numero casuale di parti coinvolte
+        selected_parts = random.sample(self.POSSIBLE_BODY_PARTS, num_parts)  # Seleziona alcune parti casualmente
+        injuries = {part: random.choice(["minor", "moderate", "severe"]) for part in selected_parts}
+        return injuries
+
 
     def _assign_ambo(self, patient):
         """
@@ -193,6 +211,7 @@ class Env(gym.Env):
 
         # Get closest ambulance
         best_distance = 9999999
+
         for ambo in self.free_ambulances:        
             if ambo.at_dispatch_point or ambo.at_hospital:
                 ambo_x = ambo.current_x
@@ -207,7 +226,7 @@ class Env(gym.Env):
                             fraction_travelled))
                     ambo_y = (ambo.start_y + ((ambo.target_y - ambo.start_y) *
                             fraction_travelled))
-        
+
             # Get distance from patient to ambulance
             distance = get_distance(patient.incident_x, patient.incident_y,
                                     ambo_x, ambo_y)
@@ -215,6 +234,7 @@ class Env(gym.Env):
                 # New best distance found
                 best_distance = distance
                 best_ambo = ambo
+                
 
         # Best ambo identified
         ambo = best_ambo
@@ -258,15 +278,31 @@ class Env(gym.Env):
         # Get closest hospital and set travel to hospital
         ambo.travelling_to_hospital = True
         best_distance = 9999999
+        max_coverage = 0
+        #best_hospital = -1
+
+        #print(f'Ci sono {self.number_hospitals} ospedali')
+
         for hospital_index in range(self.number_hospitals):
             distance = get_distance(
                 patient.incident_x, patient.incident_y,
                 self.hospitals[hospital_index][0], 
                 self.hospitals[hospital_index][1])
-            if distance < best_distance:
+            #if distance < best_distance:
                 # New best distance found
+             #  best_distance = distance
+            coverage = sum(1 for part in patient.body_parts if part in self.hospitals_specializations[hospital_index])
+            #print(f'Indice ospedale: {hospital_index} \tPatient body parts: {patient.body_parts} \tHospital specialization: {self.hospitals_specializations[hospital_index]} \tcoverage: {coverage}')
+
+            # Cerca il miglior ospedale (massima copertura, poi minima distanza)
+            if coverage > max_coverage or (coverage == max_coverage and distance < best_distance):
                 best_distance = distance
+                #print(f'Ho cambiato {best_hospital} \tche aveva coverage {max_coverage} \tcon {hospital_index} \tche ha coverage: {coverage}')
                 best_hospital = hospital_index
+                max_coverage = coverage
+                
+            self.results_coverage.append(max_coverage)
+                
         patient.allocated_hospital = best_hospital
         ambo.target_x = self.hospitals[best_hospital][0]
         ambo.target_y = self.hospitals[best_hospital][1]
@@ -327,6 +363,7 @@ class Env(gym.Env):
                     patient = self.patients_waiting_for_assignment.pop(0)
                     self.simpy_env.process(self._assign_ambo(patient))
 
+    
     def _generate_demand(self):
         """
         Generate demand (in an infinite loop)
@@ -339,9 +376,14 @@ class Env(gym.Env):
             # Generate patient
             self.calls += 1
             self.counter_patients += 1
+
+            #AGGIUNTA
+            random_injuries = self._generate_random_injuries()
+
             patient = Patient(self.simpy_env, self.counter_patients, 
                 self.number_incident_points, self.incident_points, 
-                self.incident_range, self.max_size, self.number_epochs)
+                self.incident_range, self.max_size, self.number_epochs, random_injuries)
+
             self.patients_waiting_for_assignment.append(patient)
             if self.print_output:
                 print(f'Incident: {self.simpy_env.now:0.1f}')
@@ -436,6 +478,13 @@ class Env(gym.Env):
                 x = random.uniform(0, self.max_size)
                 y = random.uniform(0, self.max_size)
                 self.hospitals.append((x, y))
+ 
+    def _set_hospital_specialization(self):
+        for h_index in range(self.number_hospitals):
+             # Ogni ospedale cura ALMENO 1 parte del corpo
+            specialized_parts = random.sample(self.POSSIBLE_BODY_PARTS,random.randint(1, len(self.POSSIBLE_BODY_PARTS)))
+            self.hospitals_specializations.append(specialized_parts)
+            
 
     def _set_incident_locations(self):
         """
@@ -588,6 +637,8 @@ class Env(gym.Env):
         self.patients_in_transit = []
         self.results_call_to_ambo_arrival = []
         self.results_assignment_to_ambo_arrival = []
+        #added
+        self.results_coverage = []
         self.reward_response_times = []
         self.calls = 0
         self.demand_met = 0
@@ -651,6 +702,7 @@ class Env(gym.Env):
             'call_to_arrival': self.results_call_to_ambo_arrival,
             'assignment_to_arrival': self.results_assignment_to_ambo_arrival,
             'calls': self.calls,
-            'fraction_demand_met': np.round(self.demand_met / self.calls, 3)}
+            'fraction_demand_met': np.round(self.demand_met / self.calls, 3),
+            'coverage': self.results_coverage}
 
         return (obs, reward, terminal, info)
