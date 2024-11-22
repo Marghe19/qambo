@@ -2,6 +2,10 @@
 Experiments in Deep Q Learning controlling ambulance placement
 
 [![DOI](https://zenodo.org/badge/326734877.svg)](https://zenodo.org/badge/latestdoi/326734877)
+### What we added to the original project
+1) Consider that the accident may involve one or more parts of the patient's body.
+2) Hospitals specialise in the treatment of one or more parts of the body.
+3) The objective of the ambulance is to take the patient to the nearest hospital that is able to treat the majority of the injuries sustained.
 
 ### Introductory video
 
