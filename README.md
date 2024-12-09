@@ -7,7 +7,7 @@ Experiments in Deep Q Learning controlling ambulance placement
 2) Hospitals specialise in the treatment of one or more parts of the body.
 3) The objective of the ambulance is to take the patient to the nearest hospital that is able to treat the majority of the injuries sustained.
 
-All the results are reported in the folder '3Incidents'.
+All the results are reported in the folder '3Incidents' and the documentation in the file `ProgettoIA_Napolitano_Nappi.pdf'.
 
 ### Introductory video
 
